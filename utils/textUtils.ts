@@ -1,3 +1,4 @@
+
 /**
  * Normalizes Turkish text for case-insensitive and diacritic-insensitive comparison.
  * Converts standard Turkish characters to their simple Latin equivalents to ensure:
@@ -11,7 +12,8 @@
 export const normalizeTurkish = (text: string): string => {
   if (!text) return "";
   
-  let normalized = text.toLocaleLowerCase('tr-TR');
+  // Force string conversion in case messy JSON data passes numbers or other types
+  let normalized = String(text).toLocaleLowerCase('tr-TR');
 
   // Manual replacement for strict broad matching as requested
   normalized = normalized
