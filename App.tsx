@@ -1,13 +1,19 @@
+
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
-import { Search, X, Moon, Sun, MapPin, FilterX } from 'lucide-react';
-import { yerlesimVerileri } from './data';
+import { Search, X, Moon, Sun, MapPin, FilterX, Loader2, AlertCircle } from 'lucide-react';
 import { YerlesimYeri } from './types';
 import { normalizeTurkish } from './utils/textUtils';
 import Pagination from './components/Pagination';
+import { yerlesimVerileri as sampleData } from './data';
 
 const ITEMS_PER_PAGE = 50;
 
 function App() {
+  const [yerlesimVerileri, setYerlesimVerileri] = useState<YerlesimYeri[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [usingSampleData, setUsingSampleData] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [darkMode, setDarkMode] = useState(false);
@@ -19,7 +25,7 @@ function App() {
     durum: ''
   });
   
-  // Use deferred value for smoother UI during typing if the dataset gets very large
+  // Use deferred value for smoother UI
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
   // Initialize Theme
@@ -38,6 +44,40 @@ function App() {
     }
   }, [darkMode]);
 
+  // FETCH DATA FROM JSON FILE
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        // public/data.json dosyasını çekiyoruz
+        const response = await fetch('/data.json');
+        
+        if (!response.ok) {
+          throw new Error('Dosya sunucuda bulunamadı.');
+        }
+
+        const data = await response.json();
+        
+        if (!Array.isArray(data)) {
+          throw new Error('Veri formatı hatalı.');
+        }
+
+        setYerlesimVerileri(data);
+        setUsingSampleData(false);
+        setError(null);
+      } catch (err) {
+        console.warn("Tam liste yüklenemedi, örnek veriler kullanılıyor.", err);
+        // Hata durumunda örnek veriye geri dön (Fallback)
+        setYerlesimVerileri(sampleData);
+        setUsingSampleData(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   // 1. First apply Global Search
   const searchedData = useMemo(() => {
     if (!deferredSearchTerm) return yerlesimVerileri;
@@ -53,7 +93,7 @@ function App() {
         normalizeTurkish(item.durum).includes(normalizedQuery)
       );
     });
-  }, [deferredSearchTerm]);
+  }, [deferredSearchTerm, yerlesimVerileri]);
 
   // 2. Then apply Column Filters on top of searched data
   const filteredData = useMemo(() => {
@@ -68,32 +108,26 @@ function App() {
     });
   }, [searchedData, filters]);
 
-  // Calculate Options for Dropdowns (Cascading logic)
-  // For a specific column, we want to show options available in the dataset filtered by ALL OTHER columns.
+  // Calculate Options for Dropdowns
   const getOptions = (key: keyof YerlesimYeri) => {
-    // Create a filter object excluding the current key
     const otherFilters = { ...filters };
     // @ts-ignore
     delete otherFilters[key];
 
-    // Apply these other filters to the searchedData
     const dataForOptions = searchedData.filter(item => {
       return Object.entries(otherFilters).every(([k, v]) => {
         if (!v) return true;
         if (k === 'mahalle') {
-          // Mahalle is usually text search, but if we needed options, we'd use includes
           return normalizeTurkish(item.mahalle).includes(normalizeTurkish(v as string));
         }
         return item[k as keyof YerlesimYeri] === v;
       });
     });
 
-    // Extract unique values
     const uniqueValues = new Set(dataForOptions.map(item => item[key]));
     return Array.from(uniqueValues).sort((a, b) => (a as string).localeCompare(b as string, 'tr'));
   };
 
-  // Memoize options to prevent unnecessary calculations
   const ilOptions = useMemo(() => getOptions('il'), [searchedData, filters.ilce, filters.belediye, filters.mahalle, filters.durum]);
   const ilceOptions = useMemo(() => getOptions('ilce'), [searchedData, filters.il, filters.belediye, filters.mahalle, filters.durum]);
   const belediyeOptions = useMemo(() => getOptions('belediye'), [searchedData, filters.il, filters.ilce, filters.mahalle, filters.durum]);
@@ -107,7 +141,6 @@ function App() {
     return filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [currentPage, filteredData]);
 
-  // Reset page when search/filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filters]);
@@ -128,32 +161,71 @@ function App() {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white gap-4">
+        <Loader2 className="animate-spin h-10 w-10 text-blue-600" />
+        <p className="text-lg font-medium">Veriler Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 text-red-600 gap-4 p-4 text-center">
+        <FilterX size={48} />
+        <p className="text-xl font-bold">{error}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Sayfayı Yenile
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen w-full p-4 md:p-8 transition-colors duration-200 flex flex-col">
+    <div className="min-h-screen w-full p-4 md:p-8 transition-colors duration-200 flex flex-col bg-gray-50 dark:bg-gray-900">
       
       {/* Header Section */}
-      <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-blue-600 rounded-lg shadow-lg shrink-0">
-            <MapPin className="text-white" size={28} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Kırsal Alan Listesi
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl mt-1">
-              TÜİK tarafından 31.12.2022 tarihli nüfus verilerine göre kır statüsünde olduğu belirlenen yerleşim yerleri IPARD III Programı için kırsal alan olarak tanımlanmaktadır.
-            </p>
-          </div>
+      <header className="mb-6 flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+            <div className="p-3 bg-blue-600 rounded-lg shadow-lg shrink-0">
+                <MapPin className="text-white" size={28} />
+            </div>
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Kırsal Alan Listesi
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl mt-1">
+                Toplam <strong>{yerlesimVerileri.length.toLocaleString('tr-TR')}</strong> yerleşim yeri içinde sorgulama yapıyorsunuz.
+                </p>
+            </div>
+            </div>
+
+            <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shrink-0"
+            aria-label="Tema Değiştir"
+            >
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
         </div>
 
-        <button
-          onClick={() => setDarkMode(!darkMode)}
-          className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shrink-0"
-          aria-label="Tema Değiştir"
-        >
-          {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        {usingSampleData && (
+            <div className="w-full bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 p-4 rounded-lg flex items-start gap-3">
+                <AlertCircle className="text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" size={20} />
+                <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <p className="font-bold mb-1">Örnek Veriler Gösteriliyor</p>
+                    <p>
+                        50.000 kayıtlık listeniz şu an yüklenemediği için örnek veriler listelenmektedir. 
+                        Tam listeyi görmek için <strong>public/data.json</strong> dosyasını GitHub'a "Upload files" yöntemiyle yüklediğinizden emin olun.
+                    </p>
+                </div>
+            </div>
+        )}
       </header>
 
       {/* Search Section */}
@@ -313,6 +385,5 @@ function App() {
     </div>
   );
 }
-
 
 export default App;
