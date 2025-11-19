@@ -210,8 +210,8 @@ function App() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                 Kırsal Alan Listesi
                 </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl mt-1">
-                Toplam <strong>{yerlesimVerileri.length.toLocaleString('tr-TR')}</strong> yerleşim yeri içinde sorgulama yapıyorsunuz.
+                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-3xl mt-1">
+                TÜİK tarafından 31.12.2022 tarihli nüfus verilerine göre kır statüsünde olduğu belirlenen yerleşim yerleri IPARD III Programı için kırsal alan olarak tanımlanmaktadır.
                 </p>
             </div>
             </div>
