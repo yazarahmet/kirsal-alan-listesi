@@ -56,11 +56,20 @@ function App() {
           throw new Error('Dosya sunucuda bulunamadı.');
         }
 
-        const data = await response.json();
+        const rawData = await response.json();
         
-        if (!Array.isArray(data)) {
+        if (!Array.isArray(rawData)) {
           throw new Error('Veri formatı hatalı.');
         }
+
+        // Data Sanitization: Handle null/undefined values to prevent crashes
+        const data: YerlesimYeri[] = rawData.map((item: any) => ({
+          il: item.il || "",
+          ilce: item.ilce || "",
+          belediye: item.belediye || "",
+          mahalle: item.mahalle || "",
+          durum: item.durum || ""
+        }));
 
         setYerlesimVerileri(data);
         setUsingSampleData(false);
@@ -125,7 +134,9 @@ function App() {
     });
 
     const uniqueValues = new Set(dataForOptions.map(item => item[key]));
-    return Array.from(uniqueValues).sort((a, b) => (a as string).localeCompare(b as string, 'tr'));
+    return Array.from(uniqueValues)
+      .filter(val => typeof val === 'string' && val !== "") // Remove non-strings and empty strings from options
+      .sort((a, b) => (a as string).localeCompare(b as string, 'tr'));
   };
 
   const ilOptions = useMemo(() => getOptions('il'), [searchedData, filters.ilce, filters.belediye, filters.mahalle, filters.durum]);
@@ -340,7 +351,7 @@ function App() {
                   <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">{item.il}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.ilce}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.belediye}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.belediye || "-"}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{item.mahalle}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
